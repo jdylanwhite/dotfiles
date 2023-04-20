@@ -13,7 +13,7 @@ This document contains all of the configuration for Rofi. I've themed my system 
   /* ~/.dotfiles/rofi.org. If you wish to edit this configuration, */
   /* please do so there!                                           */
 
-  * {
+  ,* {
      /* Dracula theme colour palette */
      drac-bgd: #282a36;
      drac-cur: #44475a;
@@ -27,26 +27,57 @@ This document contains all of the configuration for Rofi. I've themed my system 
      drac-red: #ff5555;
      drac-yel: #f1fa8c;
 
-     font: "Fira Sans 12";
+     /* One theme colour palette */
+     one-bgd: #282c34;
+     one-cur: #98c379;
+     one-fgd: #abb2bf;
+     one-cmt: #5c6370;
+     one-cya: #56b6c2;
+     one-grn: #98c379;
+     one-ora: #d19a66;
+     one-pnk: #c678dd;
+     one-pur: #61afef;
+     one-red: #e06c75;
+     one-yel: #e5c07b;
 
+     /* Gruvbox dark theme colour palette */
+     gruv-bgd: #282828;
+     gruv-cur: #98981a;
+     gruv-fgd: #ebdbb2;
+     gruv-cmt: #585858;
+     gruv-cya: #689d6a;
+     gruv-grn: #98971a;
+     gruv-ora: #D65D0E;
+     gruv-pnk: #b16286;
+     gruv-pur: #b16286;
+     gruv-red: #cc241d;
+     gruv-yel: #d79921;
+
+     /* Specify the font */
+     font: "Fira Code Retina 12";
+
+     /* Specify theme color assignments */
      foreground: @drac-fgd;
      background-color: @drac-bgd;
-     active-background: @drac-pnk;
+     active-background: @drac-cur;
      urgent-background: @drac-red;
-
      selected-background: @active-background;
      selected-urgent-background: @urgent-background;
      selected-active-background: @active-background;
      separatorcolor: @active-background;
-     bordercolor: #6272a4;
+     bordercolor: @drac-pur;
+     entrycolor: @drac-pnk;
+     promptcolor: @drac-grn;
+     coloncolor: @drac-pur;
   }
 
+  /* Assign theme colors and other UI elements */
   #window {
       background-color: @background-color;
-      border:           3;
+      border:	3;
       border-radius: 6;
       border-color: @bordercolor;
-      padding:          5;
+      padding: 5;
   }
   #mainbox {
       border:  0;
@@ -133,11 +164,11 @@ This document contains all of the configuration for Rofi. I've themed my system 
   }
   #entry {
       spacing:    0;
-      text-color: @drac-cya;
+      text-color: @entrycolor;
   }
   #prompt {
       spacing:    0;
-      text-color: @drac-grn;
+      text-color: @promptcolor;
   }
   #inputbar {
       children:   [ prompt,textbox-prompt-colon,entry,case-indicator ];
@@ -146,7 +177,7 @@ This document contains all of the configuration for Rofi. I've themed my system 
       expand:     false;
       str:        ":";
       margin:     0px 0.3em 0em 0em ;
-      text-color: @drac-grn;
+      text-color: @coloncolor;
   }
   element-text, element-icon {
       background-color: inherit;

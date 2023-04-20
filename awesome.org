@@ -5,7 +5,25 @@
 * To Do
 
 ** TODO Break up code blocks into more managable chunks 
-** TODO Add GTK theming
+** TODO Add GTK themeing
+** TODO Add temperatures to wibar
+- parse "sensors" output
+** DONE Add HDD/SSD space to wibar
+CLOSED: [2023-01-17 Tue 20:56]
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2023-01-17 Tue 20:56]
+:END:
+** DONE Add memory to wibar
+CLOSED: [2023-01-17 Tue 19:46]
+:LOGBOOK:
+- State "DONE"       from "TODO"       [2023-01-17 Tue 19:46]
+:END:
+- parse "free -m" output
+- [[https://www.cyberciti.biz/faq/linux-check-memory-usage/][useful resource]]
+** TODO Add CPU usage to wibar
+** TODO Add weather/temperature to wibar
+** TODO Fix spacing
+** TODO Theme hotkeys menu
 
 * Welcome!
 
@@ -27,6 +45,14 @@ First, let's add a note at the top of the file indicating that changes are to be
   -- NOTE: This file is automatically updated from changes in the file
   -- ~/.dotfiles/awesome.org. If you wish to make changes to this
   -- configuration file, please do so within the awesome.org file!
+
+#+end_src
+
+** Variable Definitions
+
+#+begin_src lua
+
+  local emacs = "emacsclient -c -a 'emacs' "
 
 #+end_src
 
@@ -101,7 +127,7 @@ Here we declare some useful variables to be used throughout. This is where we sp
 #+begin_src lua
 
   -- Themes define colours, icons, font and wallpapers.
-  beautiful.init("/home/jdwhite/.config/awesome/themes/dracula/theme.lua")
+  beautiful.init("/home/jdylanwhite/.config/awesome/themes/dracula/theme.lua")
 
   -- This is used later as the default terminal and editor to run.
   terminal = "alacritty"
@@ -166,9 +192,6 @@ The menu is present when you right click somewhere on the desktop. This is usefu
 ** Wibar
 
 #+begin_src lua
-
-  -- Create a textclock widget
-  mytextclock = wibox.widget.textclock()
 
   -- Create a wibox for each screen and add it
   local taglist_buttons = gears.table.join(
@@ -249,34 +272,367 @@ The menu is present when you right click somewhere on the desktop. This is usefu
         buttons = taglist_buttons
      }
 
-     -- If desired, create a tasklist widget
-     -- s.mytasklist = awful.widget.tasklist {
-        -- screen  = s,
-        -- filter  = awful.widget.tasklist.filter.currenttags,
-        -- buttons = tasklist_buttons
-     -- }
-
-     -- Create the wibox
-     s.mywibox = awful.wibar({ position = "top", screen = s, height = 19 })
-
-     -- Add widgets to the wibox
-     s.mywibox:setup {
-        layout = wibox.layout.align.horizontal,
-        { -- Left widgets
-           layout = wibox.layout.fixed.horizontal,
-           mylauncher,
-           s.mytaglist,
-           s.mypromptbox,
-        },
-        s.mytasklist, -- Middle widget
-        { -- Right widgets
-           layout = wibox.layout.fixed.horizontal,
-           mykeyboardlayout,
-           wibox.widget.systray(),
-           mytextclock,
-           s.mylayoutbox,
-        },
+     -- Create widget to separate sections
+     breakerwidget = wibox.widget{
+        markup = "|",
+        halign = "center",
+        valign = "center",
+        color = beautiful.bg_focus,
+        widget = wibox.widget.textbox
      }
+     
+#+end_src
+
+*** Clock
+
+#+begin_src lua
+
+  -- Create a textclock widget
+   local mytextclock = wibox.widget.textclock()
+   local month_calendar = awful.widget.calendar_popup.month()
+   month_calendar:attach(mytextclock, "tr")
+
+#+end_src
+
+*** Battery Icon  
+
+#+begin_src lua
+
+  -- Set the commands to get the state and percentage
+  local battery_state_command = "upower -i $(upower -e | grep \'BAT\') | grep -E \"state\""
+  local battery_percent_command = "upower -i $(upower -e | grep \'BAT\') | grep -E \"percentage\""
+
+  -- Create the textbox that will be used to print the battery percentage
+  -- and initialize it with an empty string
+  batterytextwidget = wibox.widget.textbox()
+  batterytextwidget:set_text("")
+
+  -- Create the progressbar that will be used to show the battery charge
+  -- and initialize with all background colors
+  batterybarwidget = awful.widget.progressbar()
+  batterybarwidget:set_border_color(beautiful.bg_normal)
+  batterybarwidget:set_border_width(1)
+  batterybarwidget:set_background_color(beautiful.bg_normal)
+  batterybarwidget:set_color(beautiful.bg_urgent)
+  batterybarwidget:set_width(45)
+  batterybarwidget.margins = {
+     top = 3,
+     bottom = 3,
+     left = 10,
+     right = 10
+  }
+
+  -- Create a function to fetch and parse battery information
+  local function battery_info()
+
+     -- Parse the percent
+     f = io.popen(battery_percent_command,"r")
+     local percent = string.match(f:read(),'percentage:%s*(%d+)%%')
+     f:close()
+
+     -- Set 'batterytextwidget' textbox with the percentage
+     batterytext = ' BAT:'..percent..'%'
+
+     -- Parse the state
+     f = io.popen(battery_state_command,"r")
+     local state = string.match(f:read(),'state:%s*(%w+)')
+     f:close()
+
+     -- Add a +/- to indicate charging or discharging
+     if state == "charging" then
+        batterytext = batterytext.."+"
+     elseif state == "discharging" then
+        batterytext = batterytext.."-"
+     end
+
+     -- Set the text value for the widget
+     batterytextwidget:set_markup("<span foreground='" .. beautiful.bg_urgent .. "'>" .. batterytext .. "</span>")
+
+     -- Fill the progress bar and set the border color
+     batterybarwidget:set_border_color(beautiful.bg_urgent) 
+     batterybarwidget:set_value(percent/100)
+
+  end
+
+  -- Create the timer which will allow to repeat battery status command (every 5 sec)
+  batterywidgettimer = timer({timeout=5})
+
+  -- Initialize the timer and execute the function every 5 seconds
+  batterywidgettimer:connect_signal("timeout",battery_info)
+
+  -- Start the timer
+  battery_info()
+  batterywidgettimer:start()
+
+#+end_src
+
+*** Memory
+
+#+begin_src lua
+
+  -- Set the commands to get memory usage
+  local avail_memory_command = "free -m | grep \'Mem:\' | awk \'{print $7}\'"
+  local total_memory_command = "free -m | grep \'Mem:\' | awk \'{print $2}\'"
+
+  -- Create function to round decimal values
+  local function round(num, numDecimalPlaces)
+     local mult = 10^(numDecimalPlaces or 0)
+     return math.floor(num * mult + 0.5) / mult
+  end
+
+  -- Create the textbox that will be used to print the memory percentage
+  -- and initialize it with an empty string
+  memorytextwidget = wibox.widget.textbox()
+  memorytextwidget:set_text("")
+
+  -- Create the progressbar that will be used to show the memory charge
+  -- and initialize with all background colors
+  memorybarwidget = awful.widget.progressbar()
+  memorybarwidget:set_border_color(beautiful.bg_normal)
+  memorybarwidget:set_border_width(1)
+  memorybarwidget:set_background_color(beautiful.bg_normal)
+  memorybarwidget:set_color(beautiful.fg_focus)
+  memorybarwidget:set_width(45)
+  memorybarwidget.margins = {
+     top = 3,
+     bottom = 3,
+     left = 10,
+     right = 10
+  }
+
+  -- Create function to fetch and parse system memory usage
+  local function memory_usage()
+
+     -- Parse the available memory
+     f = io.popen(avail_memory_command,"r")
+     availMem = round(tonumber(f:read()/1024),1)
+     f:close()
+
+     -- Parse the total memory
+     f = io.popen(total_memory_command,"r")
+     totalMem = round(tonumber(f:read()/1024),1)
+     f:close()
+
+     -- Return the percentage available
+     percentMem = math.floor(100-round(100*availMem/totalMem,0))
+
+     -- Set 'memorytextwidget' textbox with the percentage
+     memorytextwidget:set_markup("<span foreground='" .. beautiful.fg_focus .. "'> MEM:" .. percentMem .. "%</span>")
+
+
+     -- Fill the progress bar and set the border color
+     memorybarwidget:set_border_color(beautiful.fg_focus)
+     memorybarwidget:set_value(percentMem/100)
+
+  end
+
+  -- Create the timer which will allow to repeat memory status command (every 5 sec)
+  memorywidgettimer = timer({timeout=5})
+
+  -- Initialize the timer and execute the function every 5 seconds
+  memorywidgettimer:connect_signal("timeout",memory_usage  )
+
+  -- Start the timer
+  memory_usage()
+  memorywidgettimer:start()
+
+#+end_src
+
+*** Disk Usage
+
+#+begin_src lua
+
+  -- Set the commands to get memory usage
+  local used_hdd_command = "df -k | grep \'\\hdd\' | awk \'{print $5}\'"
+  local used_ssd_command = "df -k | grep \'\\home\' | awk \'{print $5}\'"
+
+  -- Create the textbox that will be used to print the memory percentage
+  -- and initialize it with an empty string
+  hddtextwidget = wibox.widget.textbox()
+  hddtextwidget:set_text("")
+  ssdtextwidget = wibox.widget.textbox()
+  ssdtextwidget:set_text("")
+
+  -- Create the progressbar that will be used to show the memory charge
+  -- and initialize with all background colors
+  hddbarwidget = awful.widget.progressbar()
+  hddbarwidget:set_border_color(beautiful.bg_normal)
+  hddbarwidget:set_border_width(1)
+  hddbarwidget:set_background_color(beautiful.bg_normal)
+  hddbarwidget:set_color(beautiful.fg_urgent)
+  hddbarwidget:set_width(45)
+  hddbarwidget.margins = {
+     top = 3,
+     bottom = 3,
+     left = 10,
+     right = 3
+  }
+
+  -- Create the progressbar that will be used to show the memory charge
+  -- and initialize with all background colors
+  ssdbarwidget = awful.widget.progressbar()
+  ssdbarwidget:set_border_color(beautiful.bg_normal)
+  ssdbarwidget:set_border_width(1)
+  ssdbarwidget:set_background_color(beautiful.bg_normal)
+  ssdbarwidget:set_color(beautiful.fg_urgent)
+  ssdbarwidget:set_width(45)
+  ssdbarwidget.margins = {
+     top = 3,
+     bottom = 3,
+     left = 10,
+     right = 10
+  }
+
+  -- Create the timer which will allow to repeat hdd status command (every 5 sec)
+  diskwidgettimer = timer({timeout=60})
+
+  -- Create function to fetch and parse disk usage
+  local function disk_usage()
+
+     -- Get HDD usage
+     f = io.popen(used_hdd_command,"r")
+     local used_hdd = f:read()
+     f:close()
+
+     -- Get SSD usage
+     f = io.popen(used_ssd_command,"r")
+     local used_ssd = f:read()
+     f:close()
+
+     -- Set drive usage percents
+     hddtextwidget:set_markup("<span foreground='" .. beautiful.fg_urgent .. "'> HDD:" .. used_hdd .. "</span>")
+     ssdtextwidget:set_markup("<span foreground='" .. beautiful.fg_urgent .. "'> SSD:" .. used_ssd .. "</span>")
+
+     -- Fill the progress bar and set the border color
+     hddbarwidget:set_border_color(beautiful.fg_urgent)
+     hddbarwidget:set_value(tonumber(string.match(used_hdd,'(%d+)%%'))/100)
+
+     -- Fill the progress bar and set the border color
+     ssdbarwidget:set_border_color(beautiful.fg_urgent)
+     ssdbarwidget:set_value(tonumber(string.match(used_ssd,'(%d+)%%'))/100)
+
+  end
+
+  -- Initialize the timer and execute the function every 5 seconds
+  diskwidgettimer:connect_signal("timeout",disk_usage)
+
+  -- Start the timer
+  disk_usage()
+  diskwidgettimer:start()
+  diskwidgettimer:again()
+
+#+end_src
+
+*** Volume Control
+
+#+begin_src lua
+
+  volumewidget = wibox.widget.textbox()
+  volumewidget:set_align("right")
+
+  -- Create the progressbar that will be used to show the volume 
+  -- and initialize with all background colors
+  volumebarwidget = awful.widget.progressbar()
+  volumebarwidget:set_border_color(beautiful.bg_normal)
+  volumebarwidget:set_border_width(1)
+  volumebarwidget:set_background_color(beautiful.bg_normal)
+  volumebarwidget:set_color(beautiful.border_marked)
+  volumebarwidget:set_width(45)
+  volumebarwidget.margins = {
+     top = 3,
+     bottom = 3,
+     left = 10,
+     right = 10
+  }
+
+  function update_volume(widget)
+
+     local fd = io.popen("amixer sget Master")
+     local status = fd:read("*all")
+     fd:close()
+
+     -- Parse the amixer results to get the volume
+     local volume = string.match(status, "(%d?%d?%d)%%")
+
+     -- Amixer doesn't work on initial start up, set as zero at first
+     if volume == nil or volume == '' then
+        volume = '0'
+     else
+        volume = string.format("% 3d", volume)
+        volume = string.gsub(volume, "%s+", "")
+     end
+
+     -- Set the volumebar
+     volumebarwidget:set_border_color(beautiful.border_marked)
+     volumebarwidget:set_value(tonumber(volume)/100)
+
+     -- Parse the amixer results to get the mute/unmute status
+     status = string.match(status, "%[(o[^%]]*)%]")
+
+     -- Amixer doesn't work on initial start up, set as zero at first
+     if status == nil or status == '' then
+        volume = " VOL: ---"
+     --- Set volume or indicate that volume is muted
+     else
+        if string.find(status, "on", 1, true) then
+           -- For the volume numbers
+           volume = " VOL:" .. volume .. "%"
+        else
+           -- For the mute button
+           volume = " VOL:" .. volume .. "M"
+        end
+     end
+     widget:set_markup("<span foreground='" .. beautiful.border_marked .. "'>" .. volume .. "</span>")
+
+  end
+
+  update_volume(volumewidget)
+
+  mytimer = timer({ timeout = 0.2 })
+  mytimer:connect_signal("timeout", function () update_volume(volumewidget) end)
+  mytimer:start()
+
+#+end_src
+
+*** Put The Widgets Together
+
+#+begin_src lua
+
+  -- Create the wibox
+  s.mywibox = awful.wibar({ position = "top", screen = s, height = 19 })
+
+  -- Add widgets to the wibox
+  s.mywibox:setup {
+     layout = wibox.layout.align.horizontal,
+     { -- Left widgets
+        layout = wibox.layout.fixed.horizontal,
+        mylauncher,
+        s.mytaglist,
+        s.mypromptbox,
+     },
+     s.mytasklist, -- Middle widget
+     { -- Right widgets
+        layout = wibox.layout.fixed.horizontal,
+        mykeyboardlayout,
+        wibox.widget.systray(),
+        hddtextwidget,
+        hddbarwidget,
+        ssdtextwidget,
+        ssdbarwidget,
+        breakerwidget,
+        memorytextwidget,
+        memorybarwidget,
+        breakerwidget,
+        volumewidget,
+        volumebarwidget,
+        breakerwidget,
+        batterytextwidget,
+        batterybarwidget,
+        breakerwidget,
+        mytextclock,
+        s.mylayoutbox,
+     },
+  }
   end)
 
 #+end_src
@@ -294,6 +650,30 @@ The menu is present when you right click somewhere on the desktop. This is usefu
 
   -- Key bindings
   globalkeys = gears.table.join(
+
+     -- Raise volume
+     awful.key(
+        { }, "XF86AudioRaiseVolume",
+        function ()
+           awful.util.spawn("amixer set Master 5%+", false)
+        end
+     ),
+
+     -- Lower volume
+     awful.key(
+        { }, "XF86AudioLowerVolume",
+        function ()
+           awful.util.spawn("amixer set Master 5%-", false)
+        end
+     ),
+
+     -- Mute volume
+     awful.key(
+        { }, "XF86AudioMute",
+        function ()
+           awful.util.spawn("amixer sset Master toggle", false)
+        end
+     ),
 
      -- Show key bindings
      awful.key(
@@ -606,6 +986,29 @@ The menu is present when you right click somewhere on the desktop. This is usefu
      --    }
      -- ),
 
+    -- Emacs (Super + e followed by KEY)
+    awful.key(
+       {modkey}, "e",
+       function()
+          local grabber
+          grabber = awful.keygrabber.run(
+             function(_, key, event)
+                if event == "release" then return end
+                if key == "e" then awful.spawn.with_shell(emacs)
+                elseif key == "b" then awful.spawn.with_shell(emacs .. "--eval '(ibuffer)'")
+                elseif key == "d" then awful.spawn.with_shell(emacs .. "--eval '(dired nil)'")
+                elseif key == "s" then awful.spawn.with_shell(emacs .. "--eval '(eshell)'")
+                end
+                awful.keygrabber.stop(grabber)
+             end
+          )
+       end,
+       {
+          description = "followed by KEY",
+          group = "Emacs"
+       }
+    ),
+
      -- -- Run prompt
      awful.key(
         {modkey}, "r",
@@ -907,7 +1310,26 @@ The menu is present when you right click somewhere on the desktop. This is usefu
 
 #+end_src
 
-* Dracula Theme Configuration
+** Hotkeys Themeing
+
+#+begin_src lua
+
+  beautiful.hotkeys_bg = beautiful.bg_normal
+  beautiful.hotkeys_fg = beautiful.fg_normal
+  beautiful.hotkeys_border_width = 10
+  beautiful.hotkeys_border_color = beautiful.border_focus
+  beautiful.hotkeys_modifiers_fg = beautiful.fg_urgent
+  beautiful.hotkeys_label_bg = beautiful.bg_urgent
+  beautiful.hotkeys_label_fg = beautiful.bg_focus
+  beautiful.hotkeys_font = "Fira Code Retina 10"
+  beautiful.hotkeys_description_font = "Fira Code Retina 10"
+  beautiful.hotkeys_group_margin = 10
+
+#+end_src
+
+* Theme Configuration
+
+** Dracula Theme
 :PROPERTIES:
 :HEADER-ARGS: :tangle ~/.config/awesome/themes/dracula/theme.lua :mkdirp yes 
 :END:
@@ -924,7 +1346,7 @@ This section contains all of the code for the AwesomeWM theme. I am basing my th
 
 #+end_src
 
-** Initialize Classes and Variables
+*** Initialize Classes and Variables
 
 Here we define the things we need to call or build upon in the following code.
 
@@ -936,17 +1358,17 @@ Here we define the things we need to call or build upon in the following code.
   
 #+end_src
 
-** Basic Theming
+*** Basic Theming
 
 In this section, we choose a wallpaper, font, and colors for borders. We can also add gaps to borders via the =useless_gap= class property.
 
 #+begin_src lua
 
   -- Specify a wallpaper
-  theme.wallpaper = "/home/jdwhite/.config/awesome/themes/dracula/bg.jpg"
+  theme.wallpaper = "/home/jdylanwhite/.config/awesome/themes/dracula/bg.png"
 
   -- Specify the font and default size
-  theme.font = "Fira Sans 12"
+  theme.font = "Fira Code Retina 11"
 
   -- Specify colors for frames and system tray, etc.
   theme.fg_normal = "#F8F8F2"
@@ -954,7 +1376,7 @@ In this section, we choose a wallpaper, font, and colors for borders. We can als
   theme.fg_urgent = "#50FA7B"
   theme.bg_normal = "#282A36"
   theme.bg_focus = "#44475A"
-  theme.bg_urgent = "#44475A"
+  theme.bg_urgent = "#FFB86C"
   theme.bg_systray = theme.bg_normal
 
   -- Specify colors of the borders
@@ -962,11 +1384,11 @@ In this section, we choose a wallpaper, font, and colors for borders. We can als
   theme.border_width = dpi(2)
   theme.border_normal = "#282A36"
   theme.border_focus = "#BD93F9"
-  theme.border_marked = "#BD93F9"
+  theme.border_marked = "#FF79C6"
 
 #+end_src
 
-** Menu
+*** Menu
 
 Here we can apply some customizations to the menu. The menu is somewhat useful in the early stages of using AwesomeWM, but I'll probably eventually get rid of it. It can be accessed via =Modkey + w= or by right-clicking on the wallpaper.
 
@@ -982,7 +1404,7 @@ Here we can apply some customizations to the menu. The menu is somewhat useful i
 
 #+end_src
 
-** System Tray
+*** System Tray
 
 #+begin_src lua
 
@@ -1016,7 +1438,7 @@ Here we can apply some customizations to the menu. The menu is somewhat useful i
 
 #+end_src
 
-* One Theme Configuration
+** One Theme
 :PROPERTIES:
 :HEADER-ARGS: :tangle ~/.config/awesome/themes/one/theme.lua :mkdirp yes
 :END:
@@ -1033,7 +1455,7 @@ This section contains all of the code for the AwesomeWM theme. I am basing my th
 
 #+end_src
 
-** Initialize Classes and Variables
+*** Initialize Classes and Variables
 
 Here we define the things we need to call or build upon in the following code.
 
@@ -1045,25 +1467,25 @@ Here we define the things we need to call or build upon in the following code.
 
 #+end_src
 
-** Basic Theming
+*** Basic Theming
 
 In this section, we choose a wallpaper, font, and colors for borders. We can also add gaps to borders via the =useless_gap= class property.
 
 #+begin_src lua
 
   -- Specify a wallpaper
-  theme.wallpaper = "/home/jdwhite/.config/awesome/themes/one/bg.jpg"
+  theme.wallpaper = "/home/jdylanwhite/.config/awesome/themes/one/bg.png"
 
   -- Specify the font and default size
-  theme.font = "Fira Sans 12"
+  theme.font = "Fira Code Retina 11"
 
   -- Specify colors for frames and system tray, etc.
   theme.fg_normal = "#BBC2BF"
   theme.fg_focus = "#51afef"
   theme.fg_urgent = "#C678DD"
   theme.bg_normal = "#282C34"
-  theme.bg_focus = "#1c1f24"
-  theme.bg_urgent = "#5b6268"
+  theme.bg_focus = "#282C34"
+  theme.bg_urgent = "#e06c75"
   theme.bg_systray = theme.bg_normal
 
   -- Specify colors of the borders
@@ -1071,11 +1493,12 @@ In this section, we choose a wallpaper, font, and colors for borders. We can als
   theme.border_width = dpi(2)
   theme.border_normal = "#282C34"
   theme.border_focus = "#51afef"
-  theme.border_marked = "#51afef"
-
+  theme.border_marked = "#98c379"
+  theme.border_urgent = "#e5c07b"
+  
 #+end_src
 
-** Menu
+*** Menu
 
 Here we can apply some customizations to the menu. The menu is somewhat useful in the early stages of using AwesomeWM, but I'll probably eventually get rid of it. It can be accessed via =Modkey + w= or by right-clicking on the wallpaper.
 
@@ -1091,7 +1514,7 @@ Here we can apply some customizations to the menu. The menu is somewhat useful i
 
 #+end_src
 
-** System Tray
+*** System Tray
 
 #+begin_src lua
 
@@ -1125,7 +1548,7 @@ Here we can apply some customizations to the menu. The menu is somewhat useful i
 
 #+end_src
 
-* Nord Theme Configuration
+** Nord Theme
 :PROPERTIES:
 :HEADER-ARGS: :tangle ~/.config/awesome/themes/nord/theme.lua :mkdirp yes
 :END:
@@ -1142,7 +1565,7 @@ This section contains all of the code for the AwesomeWM theme. I am basing my th
 
 #+end_src
 
-** Initialize Classes and Variables
+*** Initialize Classes and Variables
 
 Here we define the things we need to call or build upon in the following code.
 
@@ -1154,17 +1577,17 @@ Here we define the things we need to call or build upon in the following code.
 
 #+end_src
 
-** Basic Theming
+*** Basic Theming
 
 In this section, we choose a wallpaper, font, and colors for borders. We can also add gaps to borders via the =useless_gap= class property.
 
 #+begin_src lua
 
   -- Specify a wallpaper
-  theme.wallpaper = "/home/jdwhite/.config/awesome/themes/nord/bg.jpg"
+  theme.wallpaper = "/home/jdylanwhite/.config/awesome/themes/nord/bg.png"
 
   -- Specify the font and default size
-  theme.font = "Fira Sans 12"
+  theme.font = "Fira Code Retina 11"
 
   -- Specify colors for frames and system tray, etc.
   theme.fg_normal = "#D8DEE9"
@@ -1184,7 +1607,7 @@ In this section, we choose a wallpaper, font, and colors for borders. We can als
 
 #+end_src
 
-** Menu
+*** Menu
 
 Here we can apply some customizations to the menu. The menu is somewhat useful in the early stages of using AwesomeWM, but I'll probably eventually get rid of it. It can be accessed via =Modkey + w= or by right-clicking on the wallpaper.
 
@@ -1200,7 +1623,116 @@ Here we can apply some customizations to the menu. The menu is somewhat useful i
 
 #+end_src
 
-** System Tray
+*** System Tray
+
+#+begin_src lua
+
+  -- Set the icon to appear to specify active clients for a tag
+  theme.taglist_squares_sel = themes_path .. "default/taglist/squarefz.png"
+  theme.taglist_squares_unsel = themes_path .. "default/taglist/squarez.png"
+
+  -- Add spacing between system tray icons
+  theme.systray_icon_spacing = 6
+
+  -- Specify icons to be used for the layout
+  theme.layout_tile = themes_path .. "default/layouts/tilew.png"
+  theme.layout_tileleft = themes_path .. "default/layouts/tileleftw.png"
+  theme.layout_tilebottom = themes_path .. "default/layouts/tilebottomw.png"
+  theme.layout_tiletop = themes_path .. "default/layouts/tiletopw.png"
+  theme.layout_fairv = themes_path .. "default/layouts/fairvw.png"
+  theme.layout_fairh = themes_path .. "default/layouts/fairhw.png"
+  theme.layout_spiral = themes_path .. "default/layouts/spiralw.png"
+  theme.layout_dwindle = themes_path .. "default/layouts/dwindlew.png"
+  theme.layout_max = themes_path .. "default/layouts/maxw.png"
+  theme.layout_fullscreen = themes_path .. "default/layouts/fullscreenw.png"
+  theme.layout_magnifier = themes_path .. "default/layouts/magnifierw.png"
+  theme.layout_floating = themes_path .. "default/layouts/floatingw.png"
+  theme.layout_cornernw = themes_path .. "default/layouts/cornernww.png"
+  theme.layout_cornerne = themes_path .. "default/layouts/cornernew.png"
+  theme.layout_cornersw = themes_path .. "default/layouts/cornersww.png"
+  theme.layout_cornerse = themes_path .. "default/layouts/cornersew.png"
+
+  -- Return the theme class
+  return theme
+
+#+end_src
+
+** Gruvbox Theme
+:PROPERTIES:
+:HEADER-ARGS: :tangle ~/.config/awesome/themes/gruvbox/theme.lua :mkdirp yes 
+:END:
+
+This section contains all of the code for the AwesomeWM theme. I am basing my theme off of the [[https://draculatheme.com/][Dracula theme]], so this section of code is gathered into =~/.config/awesome/themes/dracula/theme.lua=.
+
+*Note:* These changes aren't necessarily going to affect the theme used by Awesome. This will only be the case if the function ~beautiful.init(filename)~ is passed the dracula theme file path as an argument in =rc.lua=.
+
+#+begin_src lua
+
+    -- NOTE: This file is automatically updated from changes in the file
+    -- ~/.dotfiles/awesome.org. If you wish to make changes to this
+    -- theme file, please do so within the awesome.org file!
+
+#+end_src
+
+*** Initialize Classes and Variables
+
+Here we define the things we need to call or build upon in the following code.
+
+#+begin_src lua
+
+  local themes_path = require("gears.filesystem").get_themes_dir()
+  local dpi = require("beautiful.xresources").apply_dpi
+  local theme = {}
+  
+#+end_src
+
+*** Basic Theming
+
+In this section, we choose a wallpaper, font, and colors for borders. We can also add gaps to borders via the =useless_gap= class property.
+
+#+begin_src lua
+
+  -- Specify a wallpaper
+  theme.wallpaper = "/home/jdylanwhite/.config/awesome/themes/gruvbox/bg.png"
+
+  -- Specify the font and default size
+  theme.font = "Fira Code Retina 11"
+
+  -- Specify colors for frames and system tray, etc.
+  theme.fg_normal = "#A89984"
+  theme.fg_focus = "#D79921"
+  theme.fg_urgent = "#CC241D"
+  theme.bg_normal = "#282828"
+  theme.bg_focus = "#282828"
+  theme.bg_urgent = "#689D6A"
+  theme.bg_systray = theme.bg_normal
+
+  -- Specify colors of the borders
+  theme.useless_gap = dpi(5)
+  theme.border_width = dpi(2)
+  theme.border_normal = "#282828"
+  theme.border_focus = "#98971A"
+  theme.border_marked = "#98971A"
+
+#+end_src
+
+*** Menu
+
+Here we can apply some customizations to the menu. The menu is somewhat useful in the early stages of using AwesomeWM, but I'll probably eventually get rid of it. It can be accessed via =Modkey + w= or by right-clicking on the wallpaper.
+
+#+begin_src lua
+
+  -- Set the size of the menu
+  theme.menu_height = dpi(25)
+  theme.menu_width = dpi(150)
+
+  -- Set the awesome icon and drop down icons
+  theme.awesome_icon = themes_path .. "sky/awesome-icon.png"
+  theme.menu_submenu_icon = themes_path .. "default/submenu.png"
+
+#+end_src
+
+*** System Tray
 
 #+begin_src lua
 
