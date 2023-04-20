@@ -277,20 +277,6 @@ I am using the [[https://github.com/tonsky/FiraCode][Fira Code]] fonts. Let's se
     (general-create-definer jdw/ctrl-c-keys
                             :prefix "C-c"))
 
-  (jdw/leader-key-def
-   "g"   '(:ignore t :which-key "git")
-   "gs"  'magit-status
-   "gd"  'magit-diff-unstaged
-   "gc"  'magit-branch-or-checkout
-   "gl"  '(:ignore t :which-key "log")
-   "glc" 'magit-log-current
-   "glf" 'magit-log-buffer-file
-   "gb"  'magit-branch
-   "gP"  'magit-push-current
-   "gp"  'magit-pull-branch
-   "gf"  'magit-fetch
-   "gF"  'magit-fetch-all
-   "gr"  'magit-rebase)
 
   ;; Files
   (jdw/leader-key-def
@@ -1300,11 +1286,7 @@ I use [[https://docs.conda.io/en/latest/miniconda.html][Miniconda]] for my Pytho
 #+begin_src emacs-lisp
 
   ;; Configure magit for git integration
-  (use-package magit
-    :straight 
-    :commands magit-status
-    :custom
-    (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
+  (use-package magit)
 
   ;; Add leader key bindings 
   (jdw/leader-key-def
