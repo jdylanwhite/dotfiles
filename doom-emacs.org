@@ -1,6 +1,6 @@
 #+title: Doom Emacs Configuration
 #+author: J. Dylan White
-#+PROPERTY: header-args:elisp :tangle ~/.doom.d/config.el :mkdirp yes
+#+PROPERTY: header-args:elisp :tangle ~/.config/doom/config.el :mkdirp yes
 
 * Things to add
 
@@ -90,40 +90,10 @@ See =C-h v doom-font= for documentation and more examples of what they accept. I
 
 #+begin_src elisp
 
-;; Set primary font
-(set-face-attribute 'default nil
-  :font "FiraCode Nerd Font Mono"
-  :height 110
-  :weight 'medium)
-
-;; Set non-monospace font
-(set-face-attribute 'variable-pitch nil
-  :font "Fira Sans"
-  :height 120
-  :weight 'medium)
-  
-;; Set monospace font 
-(set-face-attribute 'fixed-pitch nil
-  :font "FiraCode Nerd Font Mono"
-  :height 110
-  :weight 'medium)
-  
-;; Makes commented text and keywords italics.
-;; This is working in emacsclient but not emacs.
-;; Your font must have an italic face available.
-(set-face-attribute 'font-lock-comment-face nil
-  :slant 'italic)
-(set-face-attribute 'font-lock-keyword-face nil
-  :slant 'italic)
-
-;; Uncomment the following line if line spacing needs adjusting.
-(setq-default line-spacing 0.12)
-
-;; Needed if using emacsclient. Otherwise, your fonts will be smaller than expected.
-(add-to-list 'default-frame-alist '(font . "FiraCode Nerd Font Mono-11"))
-
-;; Changes certain keywords to symbols, such as lamda!
-(setq global-prettify-symbols-mode t)
+;; Set the doom themes
+(setq doom-font "Fira Code Retina-11")
+(setq doom-unicode-font "Fira Code Retina-11")
+(setq doom-variable-pitch-font "Fira Sans 12")
 
 #+end_src
 
@@ -133,16 +103,20 @@ There are two ways to load a theme. Both assume the theme is installed and avail
 
 #+begin_src elisp
 
-(setq doom-theme 'doom-dracula)
+;; Set the theme of doom
+(setq doom-theme 'doom-gruvbox)
 
 #+end_src
+
+#+RESULTS:
+: doom-tomorrow-night
 
 ** Other Basic UI Setup
 
 #+begin_src elisp
 
 ;; Add frame transparency
-(add-to-list 'default-frame-alist '(alpha . 90))
+;; (add-to-list 'default-frame-alist '(alpha . 90))
 
 ;; Disable line numbers for some modes
 (dolist (mode '(org-mode-hook
@@ -155,6 +129,12 @@ There are two ways to load a theme. Both assume the theme is installed and avail
 ;; This determines the style of line numbers in effect. If set to `nil', line
 ;; numbers are disabled. For relative line numbers, set this to `relative'.
 (setq display-line-numbers-type t)
+
+
+;; Hide icons from the modeline
+;; I was ultimately able to get icons to show up by running M-x and
+;; nerd-icons-install-fonts and all-the-icons-install-fonts
+;; (setq doom-modeline-icon nil)
 
 #+end_src
 
@@ -236,10 +216,10 @@ We use [[https://github.com/joostkremers/visual-fill-column][visual-fill-column]
   ;; (defun my/org-mode-visual-fill ()
   ;;   (setq visual-fill-column-width 100
   ;;         visual-fill-column-center-text t)
-  ;;   (visual-fill-column-mode 1))
+  ;;   visual-fill-column-mode 1)
 
   ;; ;; Use visual-fill-column to center org-mode buffers
-  ;; (use-package visual-fill-column
+  ;; (use-package! visual-fill-column
   ;;   :after org
   ;;   :hook (org-mode . my/org-mode-visual-fill))
 
@@ -285,9 +265,6 @@ This snippet adds a hook to =org-mode= buffers so that =my/org-babel-tangle-conf
 
 #+end_src
 
-#+RESULTS:
-| (lambda nil (add-hook 'after-save-hook #'my/org-babel-tangle-config)) | er/add-org-mode-expansions | org-tempo-setup | +lookup--init-org-mode-handlers-h | (closure ((hook . org-mode-hook) (--dolist-tail--) t) (&rest _) (add-hook 'before-save-hook 'org-encrypt-entries nil t)) | #[0 \300\301\302\303\304$\207 [add-hook change-major-mode-hook org-fold-show-all append local] 5] | #[0 \300\301\302\303\304$\207 [add-hook change-major-mode-hook org-babel-show-result-all append local] 5] | org-babel-result-hide-spec | org-babel-hide-all-hashes | #[0 \301\211\207 [imenu-create-index-function org-imenu-get-tree] 2] | (closure ((mode . org-mode-hook) (--dolist-tail--) t) nil (display-line-numbers-mode 0)) | doom-disable-show-paren-mode-h | doom-disable-show-trailing-whitespace-h | +org-enable-auto-reformat-tables-h | +org-enable-auto-update-cookies-h | +org-make-last-point-visible-h | org-fancy-priorities-mode | org-superstar-mode | evil-org-mode | toc-org-enable | embrace-org-mode-hook | org-eldoc-load |
-
 ** Org-Roam
 
 [[https://www.orgroam.com/][Org-Roam]] is a plain text personal knowledge management system. To use it, you must specify so in the =~/.doom.d/init.el= file.
@@ -295,7 +272,7 @@ This snippet adds a hook to =org-mode= buffers so that =my/org-babel-tangle-conf
 #+begin_src elisp
 
 ;; Set location of Org-Roam files
-(setq org-roam-directory "~/Documents/Org/OrgRoam")
+(setq org-roam-directory "~/Documents/org/OrgRoam")
 
 #+end_src
 
@@ -305,18 +282,18 @@ This snippet adds a hook to =org-mode= buffers so that =my/org-babel-tangle-conf
 
 #+begin_src elisp                
 
-;; Load websocket, a dependency for Org-Roam-UI
-(use-package! websocket
-  :after org-roam)
+;; ;; Load websocket, a dependency for Org-Roam-UI
+;; (use-package! websocket
+;;   :after org-roam)
 
-;; Load and configure Org-Roam-UI
-(use-package! org-roam-ui
-  :after org-roam
-  :config
-  (setq org-roam-ui-sync-theme t
-        org-roam-ui-follow t
-        org-roam-ui-update-on-save t
-        org-roam-ui-open-on-start t))
+;; ;; Load and configure Org-Roam-UI
+;; (use-package! org-roam-ui
+;;   :after org-roam
+;;   :config
+;;   (setq org-roam-ui-sync-theme t
+;;         org-roam-ui-follow t
+;;         org-roam-ui-update-on-save t
+;;         org-roam-ui-open-on-start t))
 
 #+end_src
 
@@ -348,13 +325,26 @@ I use [[https://docs.conda.io/en/latest/miniconda.html][Miniconda]] for my Pytho
 
 #+begin_src elisp
 
-;; Quickly load a new theme with counsel
-(map! :leader
-      :desc "Load new theme" "h t" #'counsel-load-theme)
-
 ;; Tangle files with org-babel-tangle
 (map! :leader
       :desc "Org babel tangle" "m B" #'org-babel-tangle)
 
 #+end_src
 
+* Window's Subsystem for Linux (WSL)
+
+Using Emacs on WSL can be annoying. For example, opening a link while running Emacs on Linux /should/ be as easy as =C-c C-o=, but of course that isn't the case. This changes that, all thanks to [[https://hungyi.net/posts/browse-emacs-urls-wsl/][this helpful post]] by Hung-Yi.
+
+#+begin_src elisp
+
+;; When we're using WSL, change how we open links
+(when (and (eq system-type 'gnu/linux)
+           (string-match
+            "Linux.*Microsoft.*Linux"
+            (shell-command-to-string "uname -a")))
+  (setq
+   browse-url-generic-program  "/mnt/c/Windows/System32/cmd.exe"
+   browse-url-generic-args     '("/c" "start")
+   browse-url-browser-function #'browse-url-generic))
+
+#+end_src
